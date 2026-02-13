@@ -64,9 +64,12 @@
                 <span class="text-xl font-bold tracking-tight">SCALE<span class="text-blue-400">UP</span> MONITOR</span>
                 <span class="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">Auto-Construction v2.0 AI</span>
             </div>
-            <div class="flex space-x-4">
-                <button onclick="switchView('finance')" id="btn-finance" class="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white transition hover:bg-blue-500">VP Finance</button>
-                <button onclick="switchView('risk')" id="btn-risk" class="px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white transition hover:bg-slate-800">Risk Partner</button>
+            <div class="flex items-center gap-4">
+                <button onclick="resetApiKey()" class="text-xs text-slate-400 hover:text-white underline" title="Réinitialiser la clé API">Clé API</button>
+                <div class="flex space-x-2">
+                    <button onclick="switchView('finance')" id="btn-finance" class="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white transition hover:bg-blue-500">VP Finance</button>
+                    <button onclick="switchView('risk')" id="btn-risk" class="px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white transition hover:bg-slate-800">Risk Partner</button>
+                </div>
             </div>
         </div>
     </nav>
@@ -346,16 +349,39 @@
     <!-- LOGIC -->
     <script>
         // --- API & UTILS ---
-        const apiKey = ""; // Provided by environment
+        
+        // NO HARDCODED API KEY HERE FOR SAFETY
+        let apiKey = localStorage.getItem("gemini_api_key") || "";
 
-        async function callGemini(prompt) {
-            if (!apiKey) {
-                alert("API Key manquante. L'environnement doit fournir la clé.");
-                return "Erreur API.";
+        function resetApiKey() {
+            localStorage.removeItem("gemini_api_key");
+            apiKey = "";
+            alert("Clé API oubliée. Vous devrez la saisir à nouveau lors de la prochaine utilisation de l'IA.");
+        }
+
+        async function getApiKey() {
+            if (apiKey) return apiKey;
+            
+            const userKey = prompt("Veuillez entrer votre clé API Gemini (Google AI) pour activer les fonctionnalités intelligentes :\n\n(Elle sera stockée uniquement dans votre navigateur)");
+            
+            if (userKey && userKey.trim().length > 0) {
+                apiKey = userKey.trim();
+                localStorage.setItem("gemini_api_key", apiKey);
+                return apiKey;
             }
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            return null;
+        }
+
+        async function callGemini(promptText) {
+            const key = await getApiKey();
+            
+            if (!key) {
+                return "Fonction annulée : Clé API manquante.";
+            }
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
             const payload = {
-                contents: [{ parts: [{ text: prompt }] }]
+                contents: [{ parts: [{ text: promptText }] }]
             };
             
             try {
@@ -365,14 +391,19 @@
                     body: JSON.stringify(payload)
                 });
                 
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) {
+                    if(response.status === 400 || response.status === 403) {
+                        resetApiKey(); // Key might be invalid
+                        throw new Error("Clé API invalide. Veuillez réessayer.");
+                    }
+                    throw new Error(`Erreur HTTP! status: ${response.status}`);
+                }
                 
                 const data = await response.json();
                 return data.candidates?.[0]?.content?.parts?.[0]?.text || "Aucune réponse générée.";
             } catch (error) {
                 console.error("Gemini Error:", error);
-                // Simple exponential backoff retry logic could be added here
-                return "Erreur lors de la consultation de l'IA. Veuillez réessayer.";
+                return `Erreur : ${error.message}`;
             }
         }
 
