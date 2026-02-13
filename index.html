@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance & Risk Cockpit - Auto-Construction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Slate 50 */
+            color: #1e293b; /* Slate 800 */
+        }
+
+        /* Chart Container Styling */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            max-height: 400px;
+        }
+
+        /* Risk Matrix Heatmap Colors */
+        .risk-critical { background-color: #fef2f2; border-left: 4px solid #ef4444; }
+        .risk-high { background-color: #fff7ed; border-left: 4px solid #f97316; }
+        .risk-medium { background-color: #fefce8; border-left: 4px solid #eab308; }
+        .risk-low { background-color: #f0fdf4; border-left: 4px solid #22c55e; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        /* Tab Transition */
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Loading Spinner */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative">
+
+    <!-- Navbar -->
+    <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xl font-bold tracking-tight">SCALE<span class="text-blue-400">UP</span> MONITOR</span>
+                <span class="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">Auto-Construction v2.0 AI</span>
+            </div>
+            <div class="flex space-x-4">
+                <button onclick="switchView('finance')" id="btn-finance" class="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white transition hover:bg-blue-500">VP Finance</button>
+                <button onclick="switchView('risk')" id="btn-risk" class="px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white transition hover:bg-slate-800">Risk Partner</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+        <!-- ========================================== -->
+        <!-- VIEW 1: VP FINANCE (Unit Eco & Projections) -->
+        <!-- ========================================== -->
+        <div id="finance-view" class="tab-content active space-y-8">
+            
+            <!-- Header Section -->
+            <div class="flex justify-between items-end border-b border-slate-200 pb-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900">Performance Financière & Unit Economics</h1>
+                    <p class="text-slate-500 text-sm mt-1">Analyse de la rentabilité unitaire et projection de cash flow à 36 mois.</p>
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                    <button onclick="generateExecutiveSummary()" class="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-4 py-2 rounded shadow text-sm font-bold transition">
+                        <span>✨ Générer Note Board</span>
+                    </button>
+                    <div class="text-right">
+                        <div class="text-sm text-slate-500">Runway Actuel</div>
+                        <div class="text-2xl font-bold text-emerald-600">14 Mois</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Output Area for Finance -->
+            <div id="finance-ai-output" class="hidden bg-indigo-50 border border-indigo-200 rounded-lg p-6 mb-6">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-indigo-900 font-bold flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path></svg>
+                        Note de Synthèse Exécutive (Générée par IA)
+                    </h3>
+                    <button onclick="document.getElementById('finance-ai-output').classList.add('hidden')" class="text-indigo-400 hover:text-indigo-600">✕</button>
+                </div>
+                <div id="finance-ai-content" class="prose prose-sm text-indigo-800 max-w-none"></div>
+            </div>
+
+            <!-- Unit Economics Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- LTV:CAC -->
+                <div class="bg-white p-5 rounded-lg shadow border border-slate-200">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ratio LTV:CAC</div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span class="text-3xl font-bold text-blue-900">4.2</span>
+                        <span class="text-sm text-emerald-600 font-semibold">Excellent</span>
+                    </div>
+                    <div class="mt-2 text-xs text-slate-500">Benchmark Secteur: 3.0</div>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-3">
+                        <div class="bg-blue-600 h-1.5 rounded-full" style="width: 85%"></div>
+                    </div>
+                </div>
+
+                <!-- CAC Blended -->
+                <div class="bg-white p-5 rounded-lg shadow border border-slate-200">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">CAC Global</div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span class="text-3xl font-bold text-slate-800">580 €</span>
+                    </div>
+                    <div class="mt-2 text-xs text-slate-500">
+                        <span class="font-semibold text-blue-600">Ads: 750€</span> | <span class="font-semibold text-emerald-600">SEO: 120€</span>
+                    </div>
+                </div>
+
+                <!-- Gross Margin -->
+                <div class="bg-white p-5 rounded-lg shadow border border-slate-200">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Marge Brute</div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span class="text-3xl font-bold text-slate-800">48%</span>
+                        <span class="text-sm text-red-500 font-semibold">↓ -2% vs Target</span>
+                    </div>
+                    <div class="mt-2 text-xs text-slate-500">Impacté par coût support technique</div>
+                </div>
+
+                <!-- Payback Period -->
+                <div class="bg-white p-5 rounded-lg shadow border border-slate-200">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Payback Period</div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span class="text-3xl font-bold text-slate-800">5 Mois</span>
+                    </div>
+                    <div class="mt-2 text-xs text-slate-500">Sur cash encaissé (acomptes)</div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- 3 Year Projection Chart -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow border border-slate-200">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4">Projection 3 Ans : Revenus vs EBITDA (k€)</h3>
+                    <div class="chart-container">
+                        <canvas id="projectionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Cost Structure -->
+                <div class="bg-white p-6 rounded-lg shadow border border-slate-200">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4">Structure de Coûts (Year 2)</h3>
+                    <div class="chart-container" style="height: 250px;">
+                        <canvas id="costChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-500 italic text-center">
+                        Le poste "Accompagnement Humain" est le principal levier d'optimisation (scaling).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sensitivity & Benchmarks -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Sensitivity Table -->
+                <div class="bg-white rounded-lg shadow overflow-hidden border border-slate-200">
+                    <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-800">Analyse de Sensibilité (Impact EBITDA)</h3>
+                    </div>
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 text-slate-500 font-medium">
+                            <tr>
+                                <th class="px-6 py-3">Variable Clé</th>
+                                <th class="px-6 py-3 text-center">-10% Variation</th>
+                                <th class="px-6 py-3 text-center">Base Case</th>
+                                <th class="px-6 py-3 text-center">+10% Variation</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr>
+                                <td class="px-6 py-3 font-medium text-slate-700">Prix de Vente (AOV)</td>
+                                <td class="px-6 py-3 text-center text-red-600">-150 k€</td>
+                                <td class="px-6 py-3 text-center text-slate-400">--</td>
+                                <td class="px-6 py-3 text-center text-emerald-600">+150 k€</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-3 font-medium text-slate-700">CAC (Marketing)</td>
+                                <td class="px-6 py-3 text-center text-emerald-600">+80 k€</td>
+                                <td class="px-6 py-3 text-center text-slate-400">--</td>
+                                <td class="px-6 py-3 text-center text-red-600">-80 k€</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-3 font-medium text-slate-700">Churn (Abandon)</td>
+                                <td class="px-6 py-3 text-center text-emerald-600">+40 k€</td>
+                                <td class="px-6 py-3 text-center text-slate-400">--</td>
+                                <td class="px-6 py-3 text-center text-red-600">-90 k€</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Alerts & Benchmarks -->
+                <div class="bg-white rounded-lg shadow p-6 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-4">Signaux d'Alerte & Benchmarks</h3>
+                    <ul class="space-y-4">
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-2 w-2 mt-2 rounded-full bg-red-500 mr-3"></span>
+                            <div>
+                                <span class="text-sm font-bold text-slate-700">Burn Rate > 20% du Cash dispo</span>
+                                <p class="text-xs text-slate-500">Alerte liquidité. Déclencher levée de fonds ou réduction opex si runway < 6 mois.</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-2 w-2 mt-2 rounded-full bg-amber-500 mr-3"></span>
+                            <div>
+                                <span class="text-sm font-bold text-slate-700">Marge Brute < 40%</span>
+                                <p class="text-xs text-slate-500">Danger pour un modèle SaaS/Service. Indique une part de service humain trop lourde non facturée.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- VIEW 2: RISK PARTNER (Deloitte Matrix) -->
+        <!-- ========================================== -->
+        <div id="risk-view" class="tab-content space-y-8">
+            
+            <!-- Header Section -->
+            <div class="flex justify-between items-end border-b border-slate-200 pb-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900">Cartographie des Risques Majeurs</h1>
+                    <p class="text-slate-500 text-sm mt-1">Audit Deloitte - Matrice Probabilité x Impact et Plans de Mitigation.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="generateBlackSwan()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-2 rounded shadow transition flex items-center gap-1">
+                        <span>🎲 Imagine Black Swan</span>
+                    </button>
+                    <div class="h-6 w-px bg-slate-300 mx-2"></div>
+                    <button onclick="filterRisks('all')" class="text-xs font-bold text-slate-600 hover:text-blue-600 mr-2">TOUS</button>
+                    <button onclick="filterRisks('critical')" class="text-xs font-bold text-red-600 hover:text-red-800 mr-2">CRITIQUES</button>
+                    <button onclick="filterRisks('high')" class="text-xs font-bold text-orange-600 hover:text-orange-800">ÉLEVÉS</button>
+                </div>
+            </div>
+
+            <!-- Risk AI Modal -->
+            <div id="risk-ai-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-6 relative">
+                    <button onclick="closeRiskModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+                    <div class="mb-4 flex items-center gap-2 border-b pb-2">
+                        <div class="bg-blue-100 p-2 rounded-full">
+                            <span class="text-xl">🤖</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-900">Analyste Risque IA</h3>
+                            <p class="text-xs text-slate-500" id="risk-modal-subtitle">Consultation sur le risque...</p>
+                        </div>
+                    </div>
+                    <div id="risk-ai-content" class="prose prose-sm text-slate-700 max-h-[60vh] overflow-y-auto">
+                        <!-- Content will be injected here -->
+                    </div>
+                    <div id="risk-ai-loading" class="hidden flex flex-col items-center justify-center py-10">
+                        <div class="loader mb-3"></div>
+                        <p class="text-sm text-slate-500 animate-pulse">Analyse Deloitte en cours...</p>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="closeRiskModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-sm font-medium">Fermer</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 15 Risks Table (Interactive) -->
+            <div class="bg-white rounded-lg shadow overflow-hidden border border-slate-200">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-100 text-slate-600 text-xs uppercase font-bold">
+                            <tr>
+                                <th class="p-4 w-1/12">Score</th>
+                                <th class="p-4 w-2/12">Catégorie</th>
+                                <th class="p-4 w-3/12">Risque Identifié</th>
+                                <th class="p-4 w-1/12 text-center">Prob.</th>
+                                <th class="p-4 w-1/12 text-center">Impact</th>
+                                <th class="p-4 w-3/12">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="risk-table-body" class="text-sm divide-y divide-slate-100">
+                            <!-- JS will populate this -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Scenarios Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Base Case -->
+                <div class="bg-white p-5 rounded-lg border-t-4 border-blue-500 shadow-sm">
+                    <h3 class="font-bold text-slate-800 text-sm mb-2">Base Case (Prob. 50%)</h3>
+                    <p class="text-xs text-slate-600 mb-2">Croissance modérée, taux de sinistralité faible.</p>
+                </div>
+                <!-- Best Case -->
+                <div class="bg-white p-5 rounded-lg border-t-4 border-emerald-500 shadow-sm">
+                    <h3 class="font-bold text-slate-800 text-sm mb-2">Best Case (Prob. 15%)</h3>
+                    <p class="text-xs text-slate-600 mb-2">Viralité forte, partenariats B2B (promoteurs) signés.</p>
+                </div>
+                <!-- Worst Case -->
+                <div class="bg-white p-5 rounded-lg border-t-4 border-orange-500 shadow-sm">
+                    <h3 class="font-bold text-slate-800 text-sm mb-2">Worst Case (Prob. 25%)</h3>
+                    <p class="text-xs text-slate-600 mb-2">Chute immo, clients n'obtiennent pas de prêts. Churn élevé.</p>
+                </div>
+                <!-- Black Swan -->
+                <div class="bg-white p-5 rounded-lg border-t-4 border-slate-800 shadow-sm bg-slate-50">
+                    <h3 class="font-bold text-slate-800 text-sm mb-2">Black Swan (Prob. <1%)</h3>
+                    <p class="text-xs text-slate-600 mb-2" id="black-swan-text">Accident grave sur un chantier "accompagné" = Procès collectif.</p>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-auto py-6">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400">
+            Document Confidentiel - Usage Externe Interdit - Généré par IA Partner
+        </div>
+    </footer>
+
+    <!-- LOGIC -->
+    <script>
+        // --- API & UTILS ---
+        const apiKey = ""; // Provided by environment
+
+        async function callGemini(prompt) {
+            if (!apiKey) {
+                alert("API Key manquante. L'environnement doit fournir la clé.");
+                return "Erreur API.";
+            }
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "Aucune réponse générée.";
+            } catch (error) {
+                console.error("Gemini Error:", error);
+                // Simple exponential backoff retry logic could be added here
+                return "Erreur lors de la consultation de l'IA. Veuillez réessayer.";
+            }
+        }
+
+        // --- VIEW SWITCHING ---
+        function switchView(viewName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(viewName + '-view').classList.add('active');
+            
+            const btnFinance = document.getElementById('btn-finance');
+            const btnRisk = document.getElementById('btn-risk');
+            
+            if(viewName === 'finance') {
+                btnFinance.className = "px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white transition shadow";
+                btnRisk.className = "px-4 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-800 transition";
+            } else {
+                btnFinance.className = "px-4 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-800 transition";
+                btnRisk.className = "px-4 py-2 rounded-md text-sm font-medium bg-slate-800 text-white transition shadow";
+            }
+        }
+
+        // --- DATA: 15 RISKS (DELOITTE STYLE) ---
+        const risks = [
+            { id: 1, cat: "Réglementaire", name: "Requalification Assurance (Décennale)", prob: 4, imp: 5, signal: "Refus assureur", plan: "Partenariat courtier spé", class: "risk-critical" },
+            { id: 2, cat: "Opérationnel", name: "Accident Corporel Client", prob: 2, imp: 5, signal: "Non-respect sécu", plan: "Formation obligatoire", class: "risk-high" },
+            { id: 3, cat: "Financier", name: "Incapacité Emprunt Clients", prob: 5, imp: 4, signal: "Hausse taux BCE", plan: "Offre Low Cost", class: "risk-critical" },
+            { id: 4, cat: "Réputationnel", name: "Bad Buzz (Maison non finie)", prob: 3, imp: 5, signal: "Avis < 3.5", plan: "Task Force", class: "risk-high" },
+            { id: 5, cat: "Marché", name: "Guerre des Prix", prob: 4, imp: 3, signal: "Concurrent low-cost", plan: "Branding Premium", class: "risk-medium" },
+            { id: 6, cat: "Financier", name: "Explosion CAC (Ads)", prob: 4, imp: 3, signal: "CPC > 3€", plan: "Diversification SEO", class: "risk-medium" },
+            { id: 7, cat: "Opérationnel", name: "Pénurie Coachs", prob: 3, imp: 4, signal: "Délai > 48h", plan: "Academy interne", class: "risk-medium" },
+            { id: 8, cat: "Réglementaire", name: "Normes RE2020+", prob: 5, imp: 2, signal: "Nouveaux décrets", plan: "Outils auto", class: "risk-medium" },
+            { id: 9, cat: "Opérationnel", name: "Panne Plateforme", prob: 2, imp: 4, signal: "Latence", plan: "SLA Premium", class: "risk-medium" },
+            { id: 10, cat: "Financier", name: "Défaut Paiement", prob: 3, imp: 3, signal: "Retards", plan: "Prélèvement auto", class: "risk-low" },
+            { id: 11, cat: "Marché", name: "Inflation Matériaux", prob: 5, imp: 2, signal: "Indice BT01", plan: "Achats groupés", class: "risk-low" },
+            { id: 12, cat: "Réputationnel", name: "Départ Figure Clé", prob: 2, imp: 3, signal: "Rumeurs", plan: "Key Man Insurance", class: "risk-low" },
+            { id: 13, cat: "Réglementaire", name: "RGPD / Data", prob: 1, imp: 4, signal: "Audit fail", plan: "Chiffrement", class: "risk-low" },
+            { id: 14, cat: "Opérationnel", name: "Perte savoir-faire", prob: 3, imp: 2, signal: "Turnover > 15%", plan: "Knowledge Base", class: "risk-low" },
+            { id: 15, cat: "Marché", name: "Saturation DIY", prob: 2, imp: 2, signal: "Leads stagnent", plan: "Pivot Rénovation", class: "risk-low" }
+        ];
+
+        function renderRiskTable(filter) {
+            const tbody = document.getElementById('risk-table-body');
+            tbody.innerHTML = '';
+            
+            let filteredRisks = risks;
+            if (filter === 'critical') filteredRisks = risks.filter(r => (r.prob * r.imp) >= 20);
+            if (filter === 'high') filteredRisks = risks.filter(r => (r.prob * r.imp) >= 12 && (r.prob * r.imp) < 20);
+
+            filteredRisks.sort((a, b) => (b.prob * b.imp) - (a.prob * a.imp));
+
+            filteredRisks.forEach(r => {
+                const score = r.prob * r.imp;
+                const row = `
+                    <tr class="${r.class} hover:bg-opacity-80 transition cursor-default group">
+                        <td class="p-4 font-bold text-slate-800 text-lg">${score}</td>
+                        <td class="p-4 font-semibold text-slate-600">${r.cat}</td>
+                        <td class="p-4 font-medium text-slate-900">${r.name}</td>
+                        <td class="p-4 text-center text-slate-500">${r.prob}</td>
+                        <td class="p-4 text-center text-slate-500">${r.imp}</td>
+                        <td class="p-4">
+                            <button onclick="analyzeRisk(${r.id})" class="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200">
+                                <span>✨ Analyser</span>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        window.filterRisks = renderRiskTable;
+
+        // --- GEMINI FEATURES ---
+
+        // 1. Executive Summary
+        async function generateExecutiveSummary() {
+            const outputDiv = document.getElementById('finance-ai-output');
+            const contentDiv = document.getElementById('finance-ai-content');
+            
+            outputDiv.classList.remove('hidden');
+            contentDiv.innerHTML = '<div class="loader"></div><span class="text-xs text-slate-400 ml-2">Génération en cours...</span>';
+
+            const prompt = `Tu es VP Finance d'une Scale-up d'Auto-construction. Analyse ces métriques :
+            - LTV:CAC : 4.2 (Excellent)
+            - CAC : 580€
+            - Marge Brute : 48% (Légèrement sous cible)
+            - Payback : 5 mois
+            - Runway : 14 mois
+            - Projections : EBITDA positif en Y2.
+            
+            Rédige un paragraphe de synthèse stratégique court (max 80 mots) pour le Conseil d'Administration. Utilise le format HTML (balises <b> pour le gras). Ton: Professionnel et Direct. Mentionne l'alerte sur la Marge Brute.`;
+
+            const result = await callGemini(prompt);
+            contentDiv.innerHTML = result;
+        }
+
+        // 2. Risk Analysis Modal
+        async function analyzeRisk(id) {
+            const risk = risks.find(r => r.id === id);
+            const modal = document.getElementById('risk-ai-modal');
+            const content = document.getElementById('risk-ai-content');
+            const loading = document.getElementById('risk-ai-loading');
+            const subtitle = document.getElementById('risk-modal-subtitle');
+
+            modal.classList.remove('hidden');
+            content.innerHTML = '';
+            loading.classList.remove('hidden');
+            subtitle.innerText = `Analyse approfondie : ${risk.name}`;
+
+            const prompt = `Agis comme un Partner Risk chez Deloitte. Pour le risque "${risk.name}" (Catégorie: ${risk.cat}, Score: ${risk.prob * risk.imp}/25) dans une SaaS d'accompagnement à l'auto-construction de maison :
+            
+            Génère un plan d'action structuré en format HTML simple (sans balise html/body, juste h4, ul, li, b) :
+            1. <b>Mesure Préventive Concrète</b> (Pour éviter que ça arrive)
+            2. <b>Signal Faible à Surveiller</b> (KPI précis)
+            3. <b>Plan de Crise</b> (Que faire si le risque se matérialise demain)
+            
+            Sois concis, pragmatique et expert.`;
+
+            const result = await callGemini(prompt);
+            loading.classList.add('hidden');
+            content.innerHTML = result;
+        }
+
+        function closeRiskModal() {
+            document.getElementById('risk-ai-modal').classList.add('hidden');
+        }
+
+        // 3. Black Swan Generator
+        async function generateBlackSwan() {
+            const textElement = document.getElementById('black-swan-text');
+            textElement.innerHTML = '<span class="animate-pulse">Consultation de l\'oracle...</span>';
+            
+            const prompt = `Invente un scénario "Black Swan" (événement hautement improbable mais dévastateur) spécifique au marché de la construction résidentielle et de la tech en France pour 2025. Une seule phrase percutante.`;
+            
+            const result = await callGemini(prompt);
+            textElement.innerHTML = `<b>✨ Scénario IA :</b> ${result}`;
+        }
+
+        // --- CHARTS (CHART.JS) ---
+        // Chart 1: Projections
+        const ctxProj = document.getElementById('projectionChart').getContext('2d');
+        new Chart(ctxProj, {
+            type: 'bar',
+            data: {
+                labels: ['Y1 (Lancement)', 'Y2 (Scale)', 'Y3 (Expansion)'],
+                datasets: [
+                    {
+                        label: 'Revenus (k€)',
+                        data: [450, 1800, 4200],
+                        backgroundColor: '#2563eb', // Blue 600
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'EBITDA (k€)',
+                        data: [-250, 150, 950],
+                        type: 'line',
+                        borderColor: '#10b981', // Emerald 500
+                        borderWidth: 3,
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: 'Cash Burn Cumulé (k€)',
+                        data: [-300, -350, -100], 
+                        type: 'line',
+                        borderColor: '#ef4444', // Red 500
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { position: 'left', grid: { color: '#f1f5f9' }, title: { display: true, text: 'Revenus' } },
+                    y1: { position: 'right', grid: { display: false }, title: { display: true, text: 'Profit / Cash' } }
+                }
+            }
+        });
+
+        // Chart 2: Cost Structure
+        const ctxCost = document.getElementById('costChart').getContext('2d');
+        new Chart(ctxCost, {
+            type: 'doughnut',
+            data: {
+                labels: ['Coachs & Support (COGS)', 'Marketing (CAC)', 'Tech & Produit', 'G&A (Admin)'],
+                datasets: [{
+                    data: [45, 25, 15, 15],
+                    backgroundColor: ['#64748b', '#f97316', '#3b82f6', '#94a3b8'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right' }
+                }
+            }
+        });
+
+        // Initialize
+        renderRiskTable('all');
+
+    </script>
+</body>
+</html>
